@@ -26,7 +26,7 @@ const messagesMap = new Map();
   }
 ```
 
-![](https://raw.githubusercontent.com/Blacktoviche/RNChat/master/screenshot/receiveInAndroid.gif) ![](https://raw.githubusercontent.com/Blacktoviche/RNChat/master/screenshot/sendFromiOS)
+![](https://raw.githubusercontent.com/Blacktoviche/RNChat/master/screenshot/receiveInAndroid.gif) ![](https://raw.githubusercontent.com/Blacktoviche/RNChat/master/screenshot/sendFromiOS.gif)
 
 
 ## Requirements
