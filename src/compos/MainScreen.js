@@ -29,6 +29,8 @@ class MainScreen extends Component {
                 this.props.navigation.navigate('Login');
             }
         });
+
+       //backend.deleteMessages();
     }
 
     componentDidMount() {

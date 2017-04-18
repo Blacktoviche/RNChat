@@ -38,7 +38,7 @@ class Contacts extends Component {
     }
 
     onOpenConversation(user) {
-        console.log('data: ' + this.props.loggedinUser);
+        console.log('data: ' + user.uid);
         //this.props.openConversation(data);
         this.props.navigate('Conversation', { receiver: user });
     }

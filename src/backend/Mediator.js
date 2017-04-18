@@ -1,16 +1,27 @@
 import * as localDB from './LocalDB';
 import * as onlineDB from './OnlineDB';
-import { MESSAGE_STATUS_UNREAD, MESSAGE_STATUS_READ } from '../utils/GlobaleStaticVars';
+import * as CONSTANTS from '../utils/GlobaleStaticVars';
+import RNFetchBlob from 'react-native-fetch-blob';
+import { Platform } from 'react-native';
+import { PermissionsAndroid } from 'react-native';
+//import ImageResizer from 'react-native-image-resizer';
+
+
+const Blob = RNFetchBlob.polyfill.Blob
+const fs = RNFetchBlob.fs
+window.XMLHttpRequest = RNFetchBlob.polyfill.XMLHttpRequest
+window.Blob = Blob
 
 import {
     LOGIN_USER_SUCCESS,
     LOGIN_USER_FAIL,
-
     REGISTER_USER_SUCCESS,
     REGISTER_USER_FAIL,
     UPDATE_PASSWORD_SUCCESS,
     UPDATE_PASSWORD_FAIL,
-    SETUP_LOGGEDIN_USER
+    SETUP_LOGGEDIN_USER,
+    MESSAGE_SENT,
+    VIEW_PROGRESS_CHANGED,
 } from '../core/actions/types';
 
 
@@ -131,41 +142,239 @@ export const getUserRef = (userUid) => {
 }
 
 //Chat/Messages
-export const sendMessage = (message) => {
+export const sendTextMessage = (message, queuedMessage) => {
+    message.received = false;
+    message.status = CONSTANTS.MESSAGE_STATUS_UNREAD;
+    message.type = CONSTANTS.MESSAGE_TYPE_TEXT;
     var userChatRef = onlineDB.getReceiverChatRef(message.uidTo, message.uidFrom).push();
     userChatRef.set({
-        id: message._id,
+        _id: message._id,
         text: message.text,
         createdAt: message.createdAt.getTime(),
-        status: MESSAGE_STATUS_UNREAD
+        status: CONSTANTS.MESSAGE_STATUS_UNREAD,
+        type: message.type,
+        received: message.received,
     });
-    message.sent = true;
-    message.id = localDB.generateID();
+
     message.key = userChatRef.key;
     message.sent = true;
-    message.received = false;
-    message.status = MESSAGE_STATUS_UNREAD;
-    saveMessage(message);
+    if (queuedMessage === true) {
+        updateMessage(message);
+        localDB.deleteQueueMessage(message.id);
+    } else {
+        saveMessage(message);
+    }
 }
 
-export const sendQueuedMessage = (message) => {
-    var userChatRef = onlineDB.getReceiverChatRef(message.uidTo, message.uidFrom).push();
+export async function sendImageMessage(dispatch, message, queuedMessage) {
+
+    if (Platform.OS === 'android') {
+        const granted = await requestExternalPermission();
+        if (granted === true) {
+            proccessSendingImage(dispatch, message, queuedMessage);
+            //sendThumbnailImage(dispatch, message);
+        } else {
+            console.log("Permission denied");
+            alert('You cant send/recieve pictures unless you grant RNChat app external storage permission');
+        }
+    } else {
+        proccessSendingImage(dispatch, message, queuedMessage);
+    }
+}
+
+const proccessSendingImage = (dispatch, message, queuedMessage) => {
+
+    message.received = false;
+    message.status = CONSTANTS.MESSAGE_STATUS_UNREAD;
+    message.type = CONSTANTS.MESSAGE_TYPE_IMAGE;
+    var imageName = getFileNameFromPath(message.image);
+    var newImageRef = onlineDB.getUserStorageRef(message.uidTo, imageName);
+    var mime = 'image/jpeg';
+    let uploadBlob = null
+    var messageText = message.text;
+    var messageImage = message.image;
+    RNFetchBlob.fs.readFile(messageImage.replace(CONSTANTS.ANDROID_FILE_PREFIX, ""), 'base64').then((data) => {
+        return Blob.build(data, { type: `${mime};BASE64` })
+    }).then((blob) => {
+        uploadBlob = blob
+        newImageRef.put(blob, { contentType: mime }).on('state_changed', function (snapshot) {
+            message.text = 'Uploading image...';
+            message.progressMessage = true;
+            message.image = undefined;
+            if (snapshot.bytesTransferred < snapshot.totalBytes) {
+                message.progress = snapshot.bytesTransferred / snapshot.totalBytes;
+                console.log('Upload is ' + message.progress + '% done');
+                dispatch({
+                    type: MESSAGE_SENT,
+                    message: message,
+                });
+            }
+        }, function (error) {
+            console.log('error uploading photo: ' + err);
+        }, function () {
+            uploadBlob.close()
+            console.log('image uploaded');
+            message.text = messageText;
+            message.image = messageImage;
+            var userChatRef = onlineDB.getReceiverChatRef(message.uidTo, message.uidFrom).push();
+            userChatRef.set({
+                _id: message._id,
+                text: message.text,
+                createdAt: message.createdAt.getTime(),
+                status: CONSTANTS.MESSAGE_STATUS_UNREAD,
+                type: message.type,
+                image: imageName,
+                received: message.received,
+            });
+
+            message.key = userChatRef.key;
+            message.sent = true;
+            message.progressMessage = false;
+            if (queuedMessage === true) {
+                localDB.updateMessage(message);
+                localDB.deleteQueueMessage(message.id);
+            } else {
+                saveMessage(message);
+            }
+            dispatch({
+                type: MESSAGE_SENT,
+                message: message
+            });
+        });
+    });
+}
+
+
+/*
+const sendThumbnailImage = (dispatch, message) => {
+    ImageResizer.createResizedImage(message.image, 100, 100, 'JPEG', 10)
+        .then((resizedImageUri) => {
+            message.image = resizedImageUri;
+            message.thumbnail = true;
+            message.received = false;
+            message.status = CONSTANTS.MESSAGE_STATUS_UNREAD;
+            message.type = CONSTANTS.MESSAGE_TYPE_IMAGE;
+            var mime = 'image/jpeg';
+            let uploadBlob = null
+            RNFetchBlob.fs.readFile(resizedImageUri, 'base64').then((data) => {
+                return Blob.build(data, { type: `${mime};BASE64` })
+            }).then((blob) => {
+                uploadBlob = blob
+                newImageRef.put(blob, { contentType: mime }).on('state_changed', function (snapshot) {
+                }, function (error) {
+                    console.log('error uploading thumbnail: ' + err);
+                }, function () {
+                    uploadBlob.close()
+                    console.log('thumbnail uploaded');
+                    var userChatRef = onlineDB.getReceiverChatRef(message.uidTo, message.uidFrom).push();
+                    userChatRef.set({
+                        _id: message._id,
+                        text: message.text,
+                        createdAt: message.createdAt.getTime(),
+                        status: CONSTANTS.MESSAGE_STATUS_UNREAD,
+                        type: message.type,
+                        thumbnail: true,
+                        image: message.imageName,
+                        received: message.received,
+                    });
+                    proccessSendingImage(dispatch, resizedImageUri, userChatRef.key, message);
+                });
+            });
+        }).catch((err) => {
+            console.log(err);
+
+        });
+}
+
+
+const proccessSendingImage = (dispatch, thumbnailUri, msgKey, message) => {
+
+    message.received = false;
+    message.status = CONSTANTS.MESSAGE_STATUS_UNREAD;
+    message.type = CONSTANTS.MESSAGE_TYPE_IMAGE;
+
+    var newImageRef = onlineDB.getUserStorageRef(message.uidTo, message.imageName);
+    var mime = 'image/jpeg';
+    let uploadBlob = null
+    var messageText = message.text;
+    var messageImage = message.image;
+    message.thumbnailUri = thumbnailUri;
+    RNFetchBlob.fs.readFile(messageImage.replace(CONSTANTS.ANDROID_FILE_PREFIX, ""), 'base64').then((data) => {
+        return Blob.build(data, { type: `${mime};BASE64` })
+    }).then((blob) => {
+        uploadBlob = blob
+        newImageRef.put(blob, { contentType: mime }).on('state_changed', function (snapshot) {
+            message.text = 'Uploading image...';
+            message.progressMessage = true;
+            message.image = undefined;
+            if (snapshot.bytesTransferred < snapshot.totalBytes) {
+                message.progress = snapshot.bytesTransferred / snapshot.totalBytes;
+                console.log('Upload is ' + message.progress + '% done');
+                dispatch({
+                    type: MESSAGE_SENT,
+                    message: message,
+                });
+            }
+        }, function (error) {
+            console.log('error uploading photo: ' + err);
+        }, function () {
+            uploadBlob.close()
+            console.log('image uploaded');
+            message.text = messageText;
+            message.image = messageImage;
+            var userChatRef = onlineDB.getMessageRef(message.uidTo, message.uidFrom, msgKey);
+            userChatRef.update({
+                thumbnail: false
+            });
+
+            message.id = localDB.generateID();
+            message.key = userChatRef.key;
+            message.sent = true;
+            message.progressMessage = false;
+            saveMessage(message);
+            dispatch({
+                type: MESSAGE_SENT,
+                message: message
+            });
+        });
+    });
+}
+
+*/
+export const getFileDownloadURL = (uid, fileName) => {
+    return onlineDB.getUserStorageRef(uid, fileName).getDownloadURL();
+}
+
+export const sendQueuedMessage = (dispatch, message) => {
+    /*var userChatRef = onlineDB.getReceiverChatRef(message.uidTo, message.uidFrom).push();
     userChatRef.set({
-        id: message._id,
+        _id: message._id,
         text: message.text,
         createdAt: message.createdAt,
-        status: MESSAGE_STATUS_UNREAD
+        status: CONSTANTS.MESSAGE_STATUS_UNREAD,
+        type: message.type,
+        image: message.imageName,
     });
     message.key = userChatRef.key;
-    message.sent = true;
-    localDB.updateMessage(message);
-    localDB.deleteQueueMessage(message.id);
+    message.sent = true;*/
+    message.user = { _id: 1, name: '', avatar: '' };
+    if (message.type == CONSTANTS.MESSAGE_TYPE_TEXT) {
+        sendTextMessage(message, true);
+    } else if (message.type == CONSTANTS.MESSAGE_TYPE_IMAGE) {
+        console.log('queued image message sending...', message.image);
+        //using copyMessage to avoid Realm thread violation
+        sendImageMessage(dispatch, copyMessage(message), true);
+    }
+    //localDB.updateMessage(message);
+    //localDB.deleteQueueMessage(message.id);
 }
 
 export const updateMessage = (message) => {
+
     var messageRef = onlineDB.getMessageRef(message.uidTo, message.uidFrom, message.key);
     messageRef.update({
-        status: MESSAGE_STATUS_READ
+        status: CONSTANTS.MESSAGE_STATUS_READ,
+        received: true
     });
 }
 
@@ -181,7 +390,7 @@ export const saveQueuedMessage = (message) => {
     message.key = '';
     message.sent = false;
     message.received = false;
-    message.status = MESSAGE_STATUS_UNREAD;
+    message.status = CONSTANTS.MESSAGE_STATUS_UNREAD;
     saveMessage(message);
     localDB.saveQueueMessage(message);
 }
@@ -212,4 +421,50 @@ export const getMessages = (uid, uid2) => {
 
 export const deleteAll = () => {
     return localDB.deleteAll();
+}
+
+export const deleteMessages = () => {
+    localDB.deleteMessages();
+}
+
+const getFileNameFromPath = (path) => {
+    return path.substring(path.lastIndexOf('/') + 1)
+}
+
+
+async function requestExternalPermission() {
+    const readPerm = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE);
+    const writePerm = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE);
+    if (readPerm === true && writePerm === true) {
+        return true;
+    } else {
+        var granted = null;
+        try {
+            granted = await PermissionsAndroid.requestMultiple(
+                [PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE, PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE],
+                {
+                    'title': 'RNChat App Needs External Permission',
+                    'message': 'RNChat app needs access to your external storage ' +
+                    'so you can send/recieve pictures.'
+                }
+            );
+            if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+                return true;
+            } else {
+                return false;
+            }
+        } catch (err) {
+            console.warn(err);
+            return false;
+        }
+    }
+}
+
+const copyMessage = (message) => {
+    return {
+        id: message.id, _id: message._id, key: message.key, uidFrom: message.uidFrom, uidTo: message.uidTo,
+        text: message.text, createdAt: new Date(message.createdAt), user: message.user,
+        status: message.status, sent: message.sent, received: message.received, type: message.type,
+        image: message.image, video: message.video, localDB: message.localDB, sound: message.sound, document: message.document
+    };
 }

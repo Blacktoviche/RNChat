@@ -10,8 +10,8 @@ const UserSchema = {
     properties: {
         id: 'string',
         uid: { type: 'string', optional: true },
-        username: { type: 'string', optional: true },
-        fullName: { type: 'string', optional: true },
+        username: { type: 'string', optional: true, default: 'username' },
+        fullName: { type: 'string', optional: true, default: 'fullname' },
         email: 'string',
         birthdate: { type: 'date', optional: true },
         photo: { type: 'string', optional: true },
@@ -37,13 +37,19 @@ const MessageSchema = {
         id: 'string',
         uidFrom: { type: 'string', optional: true },
         uidTo: { type: 'string', optional: true },
-        key: { type: 'string', optional: true },
-        _id: { type: 'string', optional: true },
-        text: { type: 'string', optional: true },
+        key: { type: 'string', optional: true, default: '' },
+        _id: { type: 'string' },
+        text: { type: 'string', optional: true, default: '' },
         createdAt: { type: 'int', optional: true },
         status: { type: 'int', default: 0 },
         sent: { type: 'bool', default: false },
         received: { type: 'bool', default: false },
+        type: { type: 'int', default: 0 },
+        image: { type: 'string', optional: true, default: '' },
+        video: { type: 'string', optional: true, default: '' },
+        location: { type: 'string', optional: true, default: '' },
+        sound: { type: 'string', optional: true, default: '' },
+        document: { type: 'string', optional: true, default: '' },
     }
 };
 
@@ -53,13 +59,19 @@ const MessageQueueSchema = {
         id: { type: 'string', optional: true },
         uidFrom: { type: 'string', optional: true },
         uidTo: { type: 'string', optional: true },
-        key: { type: 'string', optional: true },
+        key: { type: 'string', optional: true, default: '' },
         _id: { type: 'string', optional: true },
-        text: { type: 'string', optional: true },
+        text: { type: 'string', optional: true, default: '' },
         createdAt: { type: 'int', optional: true },
         status: { type: 'int', default: 0 },
         sent: { type: 'bool', default: false },
         received: { type: 'bool', default: false },
+        type: { type: 'int', default: 0 },
+        image: { type: 'string', optional: true, default: '' },
+        video: { type: 'string', optional: true, default: '' },
+        location: { type: 'string', optional: true, default: '' },
+        sound: { type: 'string', optional: true, default: '' },
+        document: { type: 'string', optional: true, default: '' },
     }
 };
 
@@ -78,6 +90,7 @@ const ChatSchema = {
         status: { type: 'int', default: 0 },
         sent: { type: 'bool', default: false },
         received: { type: 'bool', default: false },
+        typ: { type: 'int', default: 0 }
     }
 };
 
@@ -143,6 +156,7 @@ export const addContact = (contact) => {
 }
 
 export const saveMessage = (message) => {
+    console.log(message.id, message.uidFrom, message.uidTo, message.key, message._id, message.image);
     realm.write(() => {
         realm.create('Message', {
             id: message.id,
@@ -152,7 +166,13 @@ export const saveMessage = (message) => {
             _id: message._id,
             text: message.text,
             createdAt: message.createdAt.getTime(),
-            status: MESSAGE_STATUS_READ
+            status: message.status,
+            type: message.type,
+            image: message.image,
+            video: message.video,
+            location: message.location,
+            sound: message.sound,
+            document: message.document
         });
         updateChat(message);
     });
@@ -163,19 +183,15 @@ export const updateMessage = (message) => {
     realm.write(() => {
         realm.create('Message', {
             id: message.id,
-            uidFrom: message.uidFrom,
-            uidTo: message.uidTo,
             key: message.key,
-            _id: message._id,
-            text: message.text,
-            createdAt: message.createdAt,
+            sent: message.sent,
             status: MESSAGE_STATUS_READ
         }, true);
     });
 }
 
 export const saveQueueMessage = (message) => {
-    console.log(uidFrom, uidTo);
+    console.log('queue msg: ',message.id, message.type, message.uidFrom, message.uidTo, message.key, message._id, message.image);
     realm.write(() => {
         realm.create('MessageQueue', {
             id: message.id,
@@ -185,7 +201,13 @@ export const saveQueueMessage = (message) => {
             _id: message._id,
             text: message.text,
             createdAt: message.createdAt.getTime(),
-            status: MESSAGE_STATUS_READ
+            status: message.status,
+            type: message.type,
+            image: message.image,
+            video: message.video,
+            location: message.location,
+            sound: message.sound,
+            document: message.document
         });
     });
 }
@@ -275,6 +297,15 @@ export const deleteQueueMessage = (messageId) => {
 
 export const removeListeners = () => {
     realm.removeAllListeners();
+}
+
+export const deleteMessages = () => {
+    realm.write(() => {
+        let messages = realm.objects('Message');
+        realm.delete(messages);
+        let messagesQueue = realm.objects('MessageQueue');
+        realm.delete(messagesQueue);
+    });
 }
 
 export const deleteAll = () => {

@@ -3,6 +3,7 @@ import { MESSAGE_STATUS_UNREAD, MESSAGE_STATUS_READ } from '../utils/GlobaleStat
 const USERS_REF = '/users';
 const CHATS_REF = '/chats';
 const PROFILE_REF = '/profile';
+const IMAGE_STORAGE_REF = '/images';
 
 
 const currentUser = null;
@@ -59,4 +60,8 @@ export const getUnreadMessagesRef = (uid, uidFrom) => {
 
 export const getMessageRef = (uidTo, uidFrom, msgKey) => {
     return firebase.database().ref(`${CHATS_REF}/${uidTo}/${uidFrom}/${msgKey}`);
+}
+
+export const getUserStorageRef = (uid, fileName) => {
+    return firebase.storage().ref().child(`${IMAGE_STORAGE_REF}/${uid}/${fileName}`);
 }

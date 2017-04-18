@@ -1,6 +1,6 @@
 //General
 export const CURRENT_SCREEN_CHANGED = 'current_screen_changed';
-
+export const EMPTY_ACTION = 'empty_action';
 //Network
 export const NETWORK_STATUS_CHANGED = 'network_status_changed';
 export const QUEUED_MESSAGES_SENT = 'queued_messages_sent';
@@ -58,7 +58,9 @@ export const OPEN_CONVERSATION = 'open_conversation';
 export const SETUP_CONVERSATION = 'setup_conversation';
 export const SETUP_OLD_MESSAGES = 'setup_old_messages';
 export const IS_RECEIVER_CONTACT = 'is_receiver_contact';
-
+export const IMAGE_MODAL_CHANGED = 'image_modal_changed';
+export const IMAGE_MESSAGE_TEXT_CHANGED = 'image_message_text_changed';
+export const VIEW_PROGRESS_CHANGED = 'progress_view_changed';
 //Chat
 export const SEARCH_TEXT_CHANGED = 'search_text_changed';
 export const CHAT_LIST_CHANGED = 'chat_list_changed';
