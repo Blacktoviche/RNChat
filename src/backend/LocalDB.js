@@ -46,10 +46,11 @@ const MessageSchema = {
         received: { type: 'bool', default: false },
         type: { type: 'int', default: 0 },
         image: { type: 'string', optional: true, default: '' },
+        audio: { type: 'string', optional: true, default: '' },
         video: { type: 'string', optional: true, default: '' },
         location: { type: 'string', optional: true, default: '' },
-        sound: { type: 'string', optional: true, default: '' },
         document: { type: 'string', optional: true, default: '' },
+        sound: { type: 'string', optional: true, default: '' },
     }
 };
 
@@ -68,10 +69,11 @@ const MessageQueueSchema = {
         received: { type: 'bool', default: false },
         type: { type: 'int', default: 0 },
         image: { type: 'string', optional: true, default: '' },
+        audio: { type: 'string', optional: true, default: '' },
         video: { type: 'string', optional: true, default: '' },
         location: { type: 'string', optional: true, default: '' },
-        sound: { type: 'string', optional: true, default: '' },
         document: { type: 'string', optional: true, default: '' },
+        sound: { type: 'string', optional: true, default: '' },
     }
 };
 
@@ -156,7 +158,7 @@ export const addContact = (contact) => {
 }
 
 export const saveMessage = (message) => {
-    console.log(message.id, message.uidFrom, message.uidTo, message.key, message._id, message.image);
+    console.log(message.id, message.uidFrom, message.uidTo, message.key, message._id, message.image, message.audio);
     realm.write(() => {
         realm.create('Message', {
             id: message.id,
@@ -169,6 +171,7 @@ export const saveMessage = (message) => {
             status: message.status,
             type: message.type,
             image: message.image,
+            audio: message.audio,
             video: message.video,
             location: message.location,
             sound: message.sound,
@@ -191,7 +194,7 @@ export const updateMessage = (message) => {
 }
 
 export const saveQueueMessage = (message) => {
-    console.log('queue msg: ',message.id, message.type, message.uidFrom, message.uidTo, message.key, message._id, message.image);
+    console.log('queue msg: ', message.id, message.type, message.uidFrom, message.uidTo, message.key, message._id, message.image);
     realm.write(() => {
         realm.create('MessageQueue', {
             id: message.id,
@@ -204,6 +207,7 @@ export const saveQueueMessage = (message) => {
             status: message.status,
             type: message.type,
             image: message.image,
+            audio: message.audio,
             video: message.video,
             location: message.location,
             sound: message.sound,

@@ -188,7 +188,7 @@ const proccessSendingImage = (dispatch, message, queuedMessage) => {
     message.status = CONSTANTS.MESSAGE_STATUS_UNREAD;
     message.type = CONSTANTS.MESSAGE_TYPE_IMAGE;
     var imageName = getFileNameFromPath(message.image);
-    var newImageRef = onlineDB.getUserStorageRef(message.uidTo, imageName);
+    var newImageRef = onlineDB.getImageStorageRef(message.uidTo, imageName);
     var mime = 'image/jpeg';
     let uploadBlob = null
     var messageText = message.text;
@@ -199,7 +199,7 @@ const proccessSendingImage = (dispatch, message, queuedMessage) => {
         uploadBlob = blob
         newImageRef.put(blob, { contentType: mime }).on('state_changed', function (snapshot) {
             message.text = 'Uploading image...';
-            message.progressMessage = true;
+            message.imageProgressMessage = true;
             message.image = undefined;
             if (snapshot.bytesTransferred < snapshot.totalBytes) {
                 message.progress = snapshot.bytesTransferred / snapshot.totalBytes;
@@ -229,13 +229,93 @@ const proccessSendingImage = (dispatch, message, queuedMessage) => {
 
             message.key = userChatRef.key;
             message.sent = true;
-            message.progressMessage = false;
+            message.imageProgressMessage = false;
             if (queuedMessage === true) {
                 localDB.updateMessage(message);
                 localDB.deleteQueueMessage(message.id);
             } else {
                 saveMessage(message);
             }
+            dispatch({
+                type: MESSAGE_SENT,
+                message: message
+            });
+        });
+    });
+}
+
+export async function sendAudioMessage(dispatch, message, queuedMessage) {
+
+    if (Platform.OS === 'android') {
+        const granted = await requestExternalPermission();
+        if (granted === true) {
+            proccessSendingAudio(dispatch, message, queuedMessage);
+        } else {
+            console.log("Permission denied");
+            alert('You cant send/recieve audio unless you grant RNChat app external storage permission');
+        }
+    } else {
+        proccessSendingAudio(dispatch, message, queuedMessage);
+    }
+}
+
+const proccessSendingAudio = (dispatch, message, queuedMessage) => {
+
+    message.received = false;
+    message.status = CONSTANTS.MESSAGE_STATUS_UNREAD;
+    message.type = CONSTANTS.MESSAGE_TYPE_AUDIO;
+    var audioName = getFileNameFromPath(message.audio);
+    var newImageRef = onlineDB.getAudioStorageRef(message.uidTo, audioName);
+    var mime = 'audio/aac';
+    let uploadBlob = null
+    //var messageText = message.text;
+    var messageAudio = message.audio;
+    RNFetchBlob.fs.readFile(messageAudio.replace(CONSTANTS.ANDROID_FILE_PREFIX, ""), 'base64').then((data) => {
+        return Blob.build(data, { type: `${mime};BASE64` })
+    }).then((blob) => {
+        uploadBlob = blob
+        newImageRef.put(blob, { contentType: mime }).on('state_changed', function (snapshot) {
+            message.text = 'Uploading audio...';
+            message.audioProgressMessage = true;
+            //message.audio = undefined;
+            //console.log('Upload is ', snapshot.bytesTransferred, '/', snapshot.totalBytes);
+            if (snapshot.bytesTransferred < snapshot.totalBytes) {
+                message.progress = snapshot.bytesTransferred / snapshot.totalBytes;
+                console.log('Upload is ' + message.progress + '% done');
+                dispatch({
+                    type: MESSAGE_SENT,
+                    message: message,
+                });
+            }
+        }, function (error) {
+            console.log('error uploading audio: ' + err);
+        }, function () {
+            uploadBlob.close()
+            console.log('audio uploaded');
+            message.text = '';
+            message.audio = messageAudio;
+            var userChatRef = onlineDB.getReceiverChatRef(message.uidTo, message.uidFrom).push();
+            userChatRef.set({
+                _id: message._id,
+                text: message.text,
+                createdAt: message.createdAt.getTime(),
+                status: CONSTANTS.MESSAGE_STATUS_UNREAD,
+                type: message.type,
+                audio: audioName,
+                received: message.received,
+            });
+
+            message.key = userChatRef.key;
+            message.sent = true;
+            message.audioProgressMessage = false;
+            message.audioMessage = true;
+            if (queuedMessage === true) {
+                localDB.updateMessage(message);
+                localDB.deleteQueueMessage(message.id);
+            } else {
+                saveMessage(message);
+            }
+            console.log('audio message sent!');
             dispatch({
                 type: MESSAGE_SENT,
                 message: message
@@ -305,7 +385,7 @@ const proccessSendingImage = (dispatch, thumbnailUri, msgKey, message) => {
         uploadBlob = blob
         newImageRef.put(blob, { contentType: mime }).on('state_changed', function (snapshot) {
             message.text = 'Uploading image...';
-            message.progressMessage = true;
+            message.imageProgressMessage = true;
             message.image = undefined;
             if (snapshot.bytesTransferred < snapshot.totalBytes) {
                 message.progress = snapshot.bytesTransferred / snapshot.totalBytes;
@@ -330,7 +410,7 @@ const proccessSendingImage = (dispatch, thumbnailUri, msgKey, message) => {
             message.id = localDB.generateID();
             message.key = userChatRef.key;
             message.sent = true;
-            message.progressMessage = false;
+            message.imageProgressMessage = false;
             saveMessage(message);
             dispatch({
                 type: MESSAGE_SENT,
@@ -341,32 +421,28 @@ const proccessSendingImage = (dispatch, thumbnailUri, msgKey, message) => {
 }
 
 */
-export const getFileDownloadURL = (uid, fileName) => {
-    return onlineDB.getUserStorageRef(uid, fileName).getDownloadURL();
+export const getImageDownloadURL = (uid, fileName) => {
+    return onlineDB.getImageStorageRef(uid, fileName).getDownloadURL();
+}
+
+export const getAudioDownloadURL = (uid, fileName) => {
+    return onlineDB.getAudioStorageRef(uid, fileName).getDownloadURL();
 }
 
 export const sendQueuedMessage = (dispatch, message) => {
-    /*var userChatRef = onlineDB.getReceiverChatRef(message.uidTo, message.uidFrom).push();
-    userChatRef.set({
-        _id: message._id,
-        text: message.text,
-        createdAt: message.createdAt,
-        status: CONSTANTS.MESSAGE_STATUS_UNREAD,
-        type: message.type,
-        image: message.imageName,
-    });
-    message.key = userChatRef.key;
-    message.sent = true;*/
     message.user = { _id: 1, name: '', avatar: '' };
-    if (message.type == CONSTANTS.MESSAGE_TYPE_TEXT) {
-        sendTextMessage(message, true);
-    } else if (message.type == CONSTANTS.MESSAGE_TYPE_IMAGE) {
-        console.log('queued image message sending...', message.image);
-        //using copyMessage to avoid Realm thread violation
-        sendImageMessage(dispatch, copyMessage(message), true);
+    switch (message.type) {
+        case CONSTANTS.MESSAGE_TYPE_TEXT:
+            sendTextMessage(message, true);
+            break;
+        case CONSTANTS.MESSAGE_TYPE_IMAGE:
+            sendImageMessage(dispatch, copyMessage(message), true);
+            break;
+        case CONSTANTS.MESSAGE_TYPE_AUDIO:
+            sendAudioMessage(dispatch, copyMessage(message), true);
+            break;
+        default:
     }
-    //localDB.updateMessage(message);
-    //localDB.deleteQueueMessage(message.id);
 }
 
 export const updateMessage = (message) => {
@@ -427,7 +503,7 @@ export const deleteMessages = () => {
     localDB.deleteMessages();
 }
 
-const getFileNameFromPath = (path) => {
+export const getFileNameFromPath = (path) => {
     return path.substring(path.lastIndexOf('/') + 1)
 }
 
@@ -465,6 +541,6 @@ const copyMessage = (message) => {
         id: message.id, _id: message._id, key: message.key, uidFrom: message.uidFrom, uidTo: message.uidTo,
         text: message.text, createdAt: new Date(message.createdAt), user: message.user,
         status: message.status, sent: message.sent, received: message.received, type: message.type,
-        image: message.image, video: message.video, localDB: message.localDB, sound: message.sound, document: message.document
+        image: message.image, audio: message.audio, video: message.video, localDB: message.localDB, sound: message.sound, document: message.document
     };
 }

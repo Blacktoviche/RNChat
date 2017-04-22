@@ -89,13 +89,15 @@ const messageRecieved = (message, loggedinUser, senderUser) => {
             })
         } else if (message.type == CONSTANTS.MESSAGE_TYPE_IMAGE) {
             proccessImage(dispatch, message, loggedinUser, senderUser);
+        } else if (message.type == CONSTANTS.MESSAGE_TYPE_AUDIO) {
+            proccessAudio(dispatch, message, loggedinUser, senderUser);
         }
     }
 }
 
 /*
 const proccessThumbnail = (message, loggedinUser, senderUser) => {
-    backend.getFileDownloadURL(loggedinUser.uid, message.image).then((url) => {
+    backend.getImageDownloadURL(loggedinUser.uid, message.image).then((url) => {
         RNFetchBlob.config({ path: RNFetchBlob.fs.dirs.CacheDir + '/' + message.image, })
             .fetch('GET', url, {
             }).then((res) => {
@@ -116,23 +118,102 @@ const proccessThumbnail = (message, loggedinUser, senderUser) => {
 }
 */
 
+const proccessAudio = (dispatch, message, loggedinUser, senderUser) => {
+    console.log('audio message received: ');
+    backend.getAudioDownloadURL(loggedinUser.uid, message.audio).then((url) => {
+        RNFetchBlob.config({ path: RNFetchBlob.fs.dirs.CacheDir + '/' + message.audio, })
+            .fetch('GET', url, {
+                //'Content-Type': 'image/jpeg'
+            }).progress({ count: 1 }, (received, total) => {
+                console.log('progress', received / total);
+                message.text = 'Downloading audio...';
+                message.audioProgressMessage = true;
+                message.progress = received / total;
+                //message.image = undefined;
+                if (received <= total) {
+                    dispatch({
+                        type: MESSAGE_RECEIVED,
+                        message: message,
+                    });
+                }
+            }).then((res) => {
+                console.log('audio file saved to ', res.path());
+                message.text = msgText;
+                message.audio = res.path();
+                if (Platform.OS === 'ios') {
+                    saveAudioOnIOS(dispatch, message);
+                } else {
+                    saveAudioOnAndroid(dispatch, message);
+                }
+
+            }).catch((err) => {
+                console.log('Error downloading audio');
+                console.log(err);
+            });
+    }).catch((err) => {
+        console.log('Error getting audio url');
+        console.log(err);
+    });
+}
+
+
+const saveAudioOnIOS = (dispatch, message) => {
+    var newPath = CONSTANTS.AUDIO_DIRECTORY_IOS + backend.getFileNameFromPath(message.audio);
+    RNFetchBlob.fs.cp(message.audio, newPath)
+        .then(() => {
+            message.audioProgressMessage = false;
+            message.audio = newPath;
+            backend.saveMessage(message);
+            backend.updateMessage(message);
+            console.log('newAudioPath: ', message.audio);
+            dispatch({
+                type: MESSAGE_RECEIVED,
+                message: message
+            })
+        })
+        .catch((err) => {
+            console.log('error: ' + err);
+        })
+}
+
+async function saveAudioOnAndroid(dispatch, message) {
+    var newPath = CONSTANTS.AUDIO_DIRECTORY + backend.getFileNameFromPath(message.audio);
+    const granted = await requestExternalPermission();
+    if (granted === true) {
+        RNFetchBlob.fs.cp(message.audio, newPath)
+            .then(() => {
+                message.audioProgressMessage = false;
+                message.audio = newPath;
+                backend.saveMessage(message);
+                backend.updateMessage(message);
+                console.log('newAudioPath: ', message.audio);
+                dispatch({
+                    type: MESSAGE_RECEIVED,
+                    message: message
+                })
+            })
+            .catch((err) => {
+                console.log('error: ' + err);
+            })
+    } else {
+        console.log("Permission denied");
+        alert('You cant send/recieve audio unless you grant RNChat app external storage permission');
+    }
+}
+
 const proccessImage = (dispatch, message, loggedinUser, senderUser) => {
     console.log('image message received: ');
     var msgText = message.text;
-    backend.getFileDownloadURL(loggedinUser.uid, message.image).then((url) => {
+    backend.getImageDownloadURL(loggedinUser.uid, message.image).then((url) => {
         RNFetchBlob.config({ path: RNFetchBlob.fs.dirs.CacheDir + '/' + message.image, })
             .fetch('GET', url, {
                 //'Content-Type': 'image/jpeg'
             }).progress({ count: 1 }, (received, total) => {
                 console.log('progress', received / total);
                 message.text = 'Downloading image...';
-                message.progressMessage = true;
+                message.imageProgressMessage = true;
                 message.progress = received / total;
                 message.image = undefined;
-                /*if (isThumbnail === true) {
-                    message.thumbnailUri = thumbnailUri;
-                }*/
-
                 if (received <= total) {
                     dispatch({
                         type: MESSAGE_RECEIVED,
@@ -163,7 +244,7 @@ const proccessImage = (dispatch, message, loggedinUser, senderUser) => {
 const saveImageOnIOS = (dispatch, message) => {
     CameraRoll.saveToCameraRoll(message.image).then(res => {
         message.image = res;
-        message.progressMessage = false;
+        message.imageProgressMessage = false;
         backend.saveMessage(message);
         backend.updateMessage(message);
         dispatch({
@@ -176,12 +257,12 @@ const saveImageOnIOS = (dispatch, message) => {
 }
 
 async function saveImageOnAndroid(dispatch, message) {
-    var newImagePath = CONSTANTS.IMAGES_DIRECTORY + getFileNameFromPath(message.image);
+    var newImagePath = CONSTANTS.IMAGES_DIRECTORY_ANDROID + backend.getFileNameFromPath(message.image);
     const granted = await requestExternalPermission();
     if (granted === true) {
         RNFetchBlob.fs.cp(message.image, newImagePath)
             .then(() => {
-                message.progressMessage = false;
+                message.imageProgressMessage = false;
                 message.image = CONSTANTS.ANDROID_FILE_PREFIX + newImagePath;
                 backend.saveMessage(message);
                 backend.updateMessage(message);
@@ -200,22 +281,30 @@ async function saveImageOnAndroid(dispatch, message) {
     }
 }
 
-const getFileNameFromPath = (path) => {
-    return path.substring(path.lastIndexOf('/') + 1)
-}
-
 export async function setupFilesDirectory() {
     if (Platform.OS === 'android') {
         //maybe later
         const granted = await requestExternalPermission();
         console.log('permossions returned: ', granted);
         if (granted) {
-            RNFetchBlob.fs.exists(CONSTANTS.IMAGES_DIRECTORY)
+            RNFetchBlob.fs.exists(CONSTANTS.IMAGES_DIRECTORY_ANDROID)
                 .then((exist) => {
-                    console.log('files directory exist' + exist);
+                    console.log('image directory exist', exist);
                     if (exist === false) {
-                        RNFetchBlob.fs.mkdir(CONSTANTS.IMAGES_DIRECTORY)
-                            .then(() => { console.log('files directory created'); })
+                        RNFetchBlob.fs.mkdir(CONSTANTS.IMAGES_DIRECTORY_ANDROID)
+                            .then(() => { console.log('image directory created'); })
+                            .catch((err) => { console.log(err); })
+                    }
+                }).catch((err) => {
+                    console.log(err);
+                })
+
+            RNFetchBlob.fs.exists(CONSTANTS.AUDIO_DIRECTORY_ANDROID)
+                .then((exist) => {
+                    console.log('audio directory exist android', exist);
+                    if (exist === false) {
+                        RNFetchBlob.fs.mkdir(CONSTANTS.AUDIO_DIRECTORY_ANDROID)
+                            .then(() => { console.log('audio directory created android'); })
                             .catch((err) => { console.log(err); })
                     }
                 }).catch((err) => {
@@ -225,6 +314,18 @@ export async function setupFilesDirectory() {
             console.log("Permission denied 1");
             alert('You cant send/recieve pictures unless you grant RNChat app external storage permission');
         }
+    } else {
+        RNFetchBlob.fs.exists(CONSTANTS.AUDIO_DIRECTORY_IOS)
+            .then((exist) => {
+                console.log('audio directory exist iOS: ', exist);
+                if (exist === false) {
+                    RNFetchBlob.fs.mkdir(CONSTANTS.AUDIO_DIRECTORY_IOS)
+                        .then(() => { console.log('audio directory created iOS'); })
+                        .catch((err) => { console.log(err); })
+                }
+            }).catch((err) => {
+                console.log(err);
+            })
     }
 }
 

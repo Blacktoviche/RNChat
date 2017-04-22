@@ -4,14 +4,14 @@ import uuid from 'react-native-uuid';
 import * as backend from '../backend/Mediator';
 import {
     sendTextMessage, setupConversation, addContact, changeReceiverContactStatus, showImageModal,
-    hideImageModal, imageMessageTextChanged, sendImageMessage
+    hideImageModal, imageMessageTextChanged, sendImageMessage, startRecordingAudio, stopRecordingAudio, sendAudioMessage
 } from '../core/actions';
 import {
     Container, Content, Header, Footer, Card, CardItem, ListItem, Item,
     Input, Icon, Button, Text, Left, Body, Right, Title, Spinner, Fab
 } from 'native-base';
 import { Platform, View, StyleSheet, Modal, Image } from 'react-native';
-import { GiftedChat, Actions, Bubble } from 'react-native-gifted-chat';
+import { GiftedChat, Actions, Bubble, InputToolbar } from 'react-native-gifted-chat';
 import {
     MenuContext,
     Menu,
@@ -20,9 +20,10 @@ import {
     MenuTrigger,
     renderers
 } from 'react-native-popup-menu';
-import KeyboardSpacer from 'react-native-keyboard-spacer';
 import ImagePicker from 'react-native-image-crop-picker';
-import ProgressMessage from './ProgressMessage';
+import CustomMessage from './CustomMessage';
+import * as CONSTANTS from '../utils/GlobaleStaticVars';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 
 
 class Conversation extends Component {
@@ -36,6 +37,7 @@ class Conversation extends Component {
 
     constructor(props) {
         super(props);
+        this.renderCustomActions = this.renderCustomActions.bind(this);
     }
 
     componentWillMount() {
@@ -103,7 +105,7 @@ class Conversation extends Component {
             console.log(image);
             this.props.showImageModal(image.path);
             /*let imgName = image.path.substring(image.path.lastIndexOf('/') + 1);
-            let newPath = IMAGES_DIRECTORY  + imgName;
+            let newPath = IMAGES_DIRECTORY_ANDROID  + imgName;
             RNFetchBlob.fs.cp(image.path, newPath)
                 .then(() => {
                     console.log('image copied: ' + newPath);
@@ -121,6 +123,44 @@ class Conversation extends Component {
         });
     }
 
+
+    onOpenVideoPicker() {
+        console.log('video picker opens');
+        ImagePicker.openPicker({
+            width: 300,
+            height: 400,
+        }).then(video => {
+            console.log(video);
+            //this.props.showImageModal(video.path);
+        }).catch(err => {
+            console.log('cancel video picker: ' + err);
+        });
+    }
+
+    onOpenVideoCameraPicker() {
+        console.log('video camera picker opens');
+        ImagePicker.openCamera({
+            width: 300,
+            height: 400,
+            mediaType: 'video'
+        }).then(video => {
+            console.log(video);
+            //this.props.showImageModal(video.path);
+        }).catch(err => {
+            alert('Camera use permission required!');
+            console.log('cancel video picker: ' + err);
+        });
+    }
+
+    onRecordingAudio() {
+        console.log('on recording audio');
+        if (this.props.recordStatus === CONSTANTS.RECORD_STATUS_STARTED) {
+            this.props.stopRecordingAudio();
+        } else if (this.props.recordStatus === CONSTANTS.RECORD_STATUS_STOPED) {
+            this.props.startRecordingAudio();
+        }
+    }
+
     renderAttachmentButton() {
         return (<Button onPress={this.onOpenImagePicker.bind(this)}>
             <Icon name='attach' />
@@ -136,17 +176,24 @@ class Conversation extends Component {
     }
 
     renderCustomActions(props) {
-        return (
-            <Button style={{ backgroundColor: '#34A34F' }} onPress={() => this.onOpenImagePicker}>
-                <Icon name="logo-whatsapp" />
-            </Button>
-        );
+        if (this.props.recordStatus == CONSTANTS.RECORD_STATUS_STARTED) {
+            return (<Button onPress={this.onRecordingAudio.bind(this)} danger>
+                <Icon name="ios-recording" />
+            </Button >);
+        } else if (this.props.recordStatus == CONSTANTS.RECORD_STATUS_HOLD) {
+            return (<Button onPress={this.onRecordingAudio.bind(this)} dark>
+                <Icon name="ios-stopwatch" />
+            </Button >);
+        } else if (this.props.recordStatus == CONSTANTS.RECORD_STATUS_STOPED) {
+            return (<Button onPress={this.onRecordingAudio.bind(this)} success>
+                <Icon name="microphone" />
+            </Button >);
+        }
     }
 
-
-    renderSpinner(props) {
+    renderProgress(props) {
         return (
-            <ProgressMessage
+            <CustomMessage
                 {...props}
             />
         );
@@ -165,6 +212,26 @@ class Conversation extends Component {
         );
     }
 
+    renderToolbar(props) {
+        if (this.props.isRecording === true) {
+            return (<Input></Input>);
+        } else {
+            return (
+                <InputToolbar
+                    {...props}
+                />
+            );
+        }
+    }
+
+    /**
+     * <MenuOption onSelect={() => this.onOpenVideoCameraPicker()} customStyles={{ flex: 1, alignItems: 'center', }}>
+                                          <Icon name='ios-videocam' />
+                                      </MenuOption>
+                                      <MenuOption onSelect={() => this.onOpenVideoPicker()} customStyles={{ flex: 1, alignItems: 'center', }}>
+                                          <Icon name='ios-videocam' />
+                                      </MenuOption>
+     */
     render() {
         const { uid, username, email } = this.props.navigation.state.params.receiver;
         return (
@@ -200,19 +267,20 @@ class Conversation extends Component {
                         transparent={true}
                         visible={this.props.imageModalVisible}
                         onRequestClose={() => { this.onCloseImageModal() }}>
-                        <View style={imageModalStyle}>
-                            <Image source={{ uri: this.props.imagePath }}
-                                style={imagePreviewStyle} resizeMode='contain' />
-                            <View style={imageViewStyle}>
-                                <Input style={inputTextStyle} placeholder='Type a message..'
-                                    value={this.props.imageMessageText} onChangeText={this.onImageMessageTextChanged.bind(this)} />
-                                <Button style={{ flex: 2 }} rounded outline light bordered onPress={() => this.onSendImageMessage()}>
-                                    <Text style={{ alignItems: 'center' }}>Send</Text>
-                                    <Icon name='ios-send' />
-                                </Button>
-                                <KeyboardSpacer />
+                        <KeyboardAwareScrollView>
+                            <View style={imageModalStyle}>
+                                <Image source={{ uri: this.props.imagePath }}
+                                    style={imagePreviewStyle} resizeMode='contain' />
+                                <View style={imageViewStyle}>
+                                    <Input style={inputTextStyle} placeholder='Type a message..'
+                                        value={this.props.imageMessageText} onChangeText={this.onImageMessageTextChanged.bind(this)} />
+                                    <Button style={{ flex: 2 }} rounded outline light bordered onPress={() => this.onSendImageMessage()}>
+                                        <Text style={{ alignItems: 'center' }}>Send</Text>
+                                        <Icon name='ios-send' />
+                                    </Button>
+                                </View>
                             </View>
-                        </View>
+                        </KeyboardAwareScrollView>
                     </Modal>
                     <GiftedChat
                         messages={this.props.messages}
@@ -222,7 +290,9 @@ class Conversation extends Component {
                             name: this.props.loggedinUser.username
                         }}
                         //renderBubble={this.renderBubble}
-                        renderCustomView={this.renderSpinner}
+                        renderCustomView={this.renderProgress}
+                        //renderInputToolbar={this.renderToolbar}
+                        renderActions={this.renderCustomActions}
                     />
                 </Container>
             </MenuContext>
@@ -301,14 +371,14 @@ const menuContextStyles = {
 
 const mapStateToProps = ({ conversReducer }) => {
     const { currentChat, typingText, messages, message, receiverName,
-        receiverUID, isContact, loggedinUser, networkStatus, imageModalVisible, imagePath, imageMessageText, viewProgress } = conversReducer;
+        receiverUID, isContact, loggedinUser, networkStatus, imageModalVisible, imagePath, imageMessageText, viewProgress, recordStatus } = conversReducer;
     return {
         currentChat, typingText, messages, message, receiverName,
-        receiverUID, isContact, loggedinUser, networkStatus, imageModalVisible, imagePath, imageMessageText, viewProgress
+        receiverUID, isContact, loggedinUser, networkStatus, imageModalVisible, imagePath, imageMessageText, viewProgress, recordStatus
     };
 };
 
 export default connect(mapStateToProps, {
-    sendTextMessage, setupConversation, addContact,
-    changeReceiverContactStatus, showImageModal, hideImageModal, imageMessageTextChanged, sendImageMessage
+    sendTextMessage, setupConversation, addContact, changeReceiverContactStatus, showImageModal, hideImageModal,
+    imageMessageTextChanged, sendImageMessage, startRecordingAudio, stopRecordingAudio, sendAudioMessage
 })(Conversation);

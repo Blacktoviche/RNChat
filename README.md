@@ -2,7 +2,7 @@
 
 RNChat is simple chat app for android & iOS using the power of react native & redux 
 RNChat uses firebase as online db & Realm as local db and it's full implemented redux actions & reducers
-This is my first react native project so don't expect too much professinality :)
+This is my first react native project so don't expect too much professinality
 
 
 ## Note
@@ -25,6 +25,8 @@ const messagesMap = new Map();
     return messagesMap.sortBy(msg => msg.createdAt).reverse().toArray();
   }
 ```
+you can clone the modified repository here (https://github.com/Blacktoviche/react-native-gifted-chat)
+
 
 ![](https://raw.githubusercontent.com/Blacktoviche/RNChat/master/screenshot/receiveInAndroid.gif) ![](https://raw.githubusercontent.com/Blacktoviche/RNChat/master/screenshot/sendFromiOS.gif)
 
@@ -51,7 +53,13 @@ const messagesMap = new Map();
 ## TODO
 - [x] send/receive Text
 - [x] send/receive Photos
-- [ ] send/receive Recorded Sound 
+- [ ] send/receive Recorded Audio 
 - [ ] send/receive Videos
 - [ ] send/receive Documents
 - [ ] send/receive Locations
+- [ ] clean code
+
+## License
+- [MIT](LICENSE)
+
+Twitter [@SyrianDeveloper](https://www.twitter.com/SyrianDeveloper)

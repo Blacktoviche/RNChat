@@ -61,8 +61,11 @@ export const IS_RECEIVER_CONTACT = 'is_receiver_contact';
 export const IMAGE_MODAL_CHANGED = 'image_modal_changed';
 export const IMAGE_MESSAGE_TEXT_CHANGED = 'image_message_text_changed';
 export const VIEW_PROGRESS_CHANGED = 'progress_view_changed';
+export const RECORD_AUDIO_STARTED = 'record_audio_strted';
+export const RECORD_AUDIO_STOPPED = 'record_audio_stopped';
+export const RECORD_AUDIO_HOLD = 'record_audio_hold';
+
 //Chat
 export const SEARCH_TEXT_CHANGED = 'search_text_changed';
 export const CHAT_LIST_CHANGED = 'chat_list_changed';
 export const FILTERED_CHAT_LIST_CHANGED = 'filtered_chat_list_changed';
-

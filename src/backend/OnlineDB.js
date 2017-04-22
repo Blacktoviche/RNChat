@@ -4,6 +4,7 @@ const USERS_REF = '/users';
 const CHATS_REF = '/chats';
 const PROFILE_REF = '/profile';
 const IMAGE_STORAGE_REF = '/images';
+const AUDIO_STORAGE_REF = '/audio';
 
 
 const currentUser = null;
@@ -62,6 +63,10 @@ export const getMessageRef = (uidTo, uidFrom, msgKey) => {
     return firebase.database().ref(`${CHATS_REF}/${uidTo}/${uidFrom}/${msgKey}`);
 }
 
-export const getUserStorageRef = (uid, fileName) => {
+export const getImageStorageRef = (uid, fileName) => {
     return firebase.storage().ref().child(`${IMAGE_STORAGE_REF}/${uid}/${fileName}`);
+}
+
+export const getAudioStorageRef = (uid, fileName) => {
+    return firebase.storage().ref().child(`${AUDIO_STORAGE_REF}/${uid}/${fileName}`);
 }

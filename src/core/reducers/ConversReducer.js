@@ -10,7 +10,11 @@ import {
     IMAGE_MODAL_CHANGED,
     IMAGE_MESSAGE_TEXT_CHANGED,
     VIEW_PROGRESS_CHANGED,
+    RECORD_AUDIO_STARTED,
+    RECORD_AUDIO_STOPPED,
+    RECORD_AUDIO_HOLD,
 } from '../actions/types';
+import * as CONSTANTS from '../../utils/GlobaleStaticVars';
 
 const INITIAL_STATE = {
     currentChat: null,
@@ -26,12 +30,20 @@ const INITIAL_STATE = {
     imageModalVisible: false,
     imagePath: '../imgz/noimg.png',
     imageMessageText: '',
-    viewProgress: false
+    viewProgress: false,
+    recordStatus: CONSTANTS.RECORD_STATUS_STOPED,
+    audioPath: ''
 };
 
 export default (state = INITIAL_STATE, action) => {
 
     switch (action.type) {
+        case RECORD_AUDIO_STARTED:
+            return { ...state, recordStatus: CONSTANTS.RECORD_STATUS_STARTED };
+        case RECORD_AUDIO_HOLD:
+            return { ...state, recordStatus: CONSTANTS.RECORD_STATUS_HOLD };
+        case RECORD_AUDIO_STOPPED:
+            return { ...state, recordStatus: CONSTANTS.RECORD_STATUS_STOPED, audioPath: action.payload };
         case VIEW_PROGRESS_CHANGED:
             return { ...state, viewProgress: action.payload };
         case IMAGE_MESSAGE_TEXT_CHANGED:
