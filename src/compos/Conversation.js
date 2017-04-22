@@ -104,19 +104,6 @@ class Conversation extends Component {
         }).then(image => {
             console.log(image);
             this.props.showImageModal(image.path);
-            /*let imgName = image.path.substring(image.path.lastIndexOf('/') + 1);
-            let newPath = IMAGES_DIRECTORY_ANDROID  + imgName;
-            RNFetchBlob.fs.cp(image.path, newPath)
-                .then(() => {
-                    console.log('image copied: ' + newPath);
-                    if (Platform.OS === 'ios') {
-                        this.props.showImageModal(newPath);
-                    } else {
-                        this.props.showImageModal(CONSTANTS.ANDROID_FILE_PREFIX  + newPath);
-                    }
-
-                })
-                .catch((error) => { console.log(error); })*/
         }).catch(err => {
             alert('Camera use permission required!');
             console.log('cancel image picker: ' + err);
